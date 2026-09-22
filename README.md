@@ -26,6 +26,15 @@ This repository currently contains an initial set of experiments exploring this 
 
 ---
 
+
+## Architecture
+
+<p align="center">
+  <img src="code2spec.png" alt="Code2Spec Architecture" width="100%">
+</p>
+
+The Code2Spec workflow takes an existing implementation, provides it to an LLM, generates an abstract TLA+ specification, and evaluates the generated specification against a reference model using formal verification and behavioral comparison.
+
 ## Motivation
 
 LLMs are increasingly capable of generating software implementations, but generated code can be difficult to reason about formally.
