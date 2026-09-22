@@ -1,0 +1,154 @@
+// === App.java ===
+package org.kuppe;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+public class App {
+public static void main(String[] args) throws InterruptedException {
+        final Configuration conf = new Configuration(args);
+final int k = conf.bufCapacity;
+final BlockingQueue<String> queue = new BlockingQueue<>(k);
+final Collection<Callable<Void>> tasks = new HashSet<>();
+for (int i = 0; i < conf.producers; i++) {
+tasks.add(new Producer(Integer.toString(tasks.size()), queue));
+}
+for (int i = 0; i < conf.consumers; i++) {
+tasks.add(new Consumer(queue));
+}
+final ExecutorService pool = Executors.newCachedThreadPool();
+pool.invokeAll(tasks);
+pool.shutdown();
+pool.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
+}
+private static class Configuration {
+public final int bufCapacity;
+public final int producers;
+public final int consumers;
+public Configuration(String args[]) {
+if (args.length == 3) {
+this.bufCapacity = Integer.parseInt(args[0]);
+this.producers = Integer.parseInt(args[1]);
+this.consumers = Integer.parseInt(args[2]);
+} else {
+this.bufCapacity = 3;
+this.producers = 4;
+this.consumers = 3;
+}
+}
+}
+}
+
+// === BlockingQueue.java ===
+package org.kuppe;
+
+public final class BlockingQueue<E> {
+private final E[] store;
+private int head;
+private int tail;
+private int size;
+
+@SuppressWarnings("unchecked")
+public BlockingQueue(final int capacity) {
+this.store = (E[]) new Object[capacity];
+}
+
+public synchronized void put(final E e) throws InterruptedException {
+while (isFull()) {
+System.out.println("Buffer full; P waits");
+wait();
+System.out.println("P notified");
+}
+notify();
+append(e);
+}
+
+public synchronized E take() throws InterruptedException {
+while (isEmpty()) {
+System.out.println("Buffer empty; C waits");
+wait();
+System.out.println("C notified");
+}
+notify();
+return head();
+}
+
+private void append(final E e) {
+store[tail] = e;
+tail = (tail + 1) % store.length;
+size++;
+}
+
+private E head() {
+final E e = store[head];
+store[head] = null;
+head = (head + 1) % store.length;
+size--;
+return e;
+}
+
+private boolean isFull() {
+return size == store.length;
+}
+
+private boolean isEmpty() {
+return size == 0;
+}
+}
+
+// === Producer.java ===
+package org.kuppe;
+
+import java.util.Random;
+import java.util.concurrent.Callable;
+
+class Producer implements Callable<Void> {
+private final int sleepProd = 42;
+private final Random rand = new Random();
+private final BlockingQueue<String> queue;
+private final String name;
+
+public Producer(final String name, final BlockingQueue<String> queue) {
+this.name = name;
+this.queue = queue;
+}
+
+@Override
+public Void call() throws Exception {
+while (true) {
+queue.put(name);
+System.out.printf("P put %s\n", name);
+Thread.sleep(rand.nextInt(sleepProd));
+}
+}
+}
+
+// === Consumer.java ===
+package org.kuppe;
+
+import java.util.Random;
+import java.util.concurrent.Callable;
+
+class Consumer implements Callable<Void> {
+private static final int sleepCons = 23;
+private final Random rand = new Random();
+private final BlockingQueue<String> queue;
+
+public Consumer(final BlockingQueue<String> queue) {
+this.queue = queue;
+}
+
+@Override
+public Void call() throws Exception {
+while (true) {
+final Object take = queue.take();
+if (take == null) throw new NullPointerException();
+System.out.printf("C took %s\n", take);
+Thread.sleep(rand.nextInt(sleepCons));
+}
+}
+}
